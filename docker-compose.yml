@@ -7,5 +7,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .env:/ssh-bot/.env
-      - $HOME/.ssh/id_rsa:/root/.ssh/id_rsa
+      - ${SSH_PRIVATE_KEY_PATH_HOST}:/root/.ssh/id_rsa
+      - ~/.ssh/known_hosts:/ssh-bot/known_hosts
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

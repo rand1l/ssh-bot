@@ -1,7 +1,14 @@
 # Build image
 FROM golang:1.23-alpine3.20 AS build
 WORKDIR /ssh-bot
+
+# Copy only dependency files
+# This allows Docker to cache the dependency layer and avoid downloading them each time,
+# if only the source code changes, not go.mod/go.sum.
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
+
 RUN go mod download
 ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /ssh-bot/ssh-bot

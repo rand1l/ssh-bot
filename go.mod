@@ -1,4 +1,4 @@
-module github.com/Lifailon/ssh-bot
+module github.com/rand1l/ssh-bot
 
 go 1.23.4
 
