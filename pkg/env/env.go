@@ -21,8 +21,8 @@ type Env struct {
 	SSH_CONNECT_TIMEOUT  string
 	SSH_SAVE_ENV         bool
 	SSH_HOSTS            string
-	SSH_HOST_LIST        []string
 	LOG_MODE             string
+	SshHostsMap map[string]string
 }
 
 func (env *Env) GetEnv() {
@@ -85,8 +85,6 @@ func (env *Env) GetEnv() {
 			} else {
 				env.SSH_SAVE_ENV = false
 			}
-		case envKey == "SSH_HOST_LIST":
-			env.SSH_HOSTS = strings.TrimSpace(strings.Split(envValue, "#")[0])
 		case envKey == "LOG_MODE":
 			env.LOG_MODE = strings.TrimSpace(strings.Split(envValue, "#")[0])
 		}
@@ -100,7 +98,7 @@ func (env *Env) GetEnv() {
 		env.LINUX_SHELL = "sh"
 	}
 	if len(env.SSH_PORT) == 0 {
-		env.SSH_CONNECT_TIMEOUT = "22"
+		env.SSH_PORT = "22"
 	}
 	if len(env.SSH_USER) == 0 {
 		env.SSH_USER = "root"
@@ -118,22 +116,12 @@ func (env *Env) GetEnv() {
 		env.SSH_CONNECT_TIMEOUT = "2"
 	}
 
-	// Get array hosts from SSH_HOST_LIST
-	env.GetHost()
-
 	// Logging env
 	if env.LOG_MODE == "DEBUG" {
 		env.PrintEnv()
 	}
 }
 
-func (env *Env) GetHost() {
-	env.SSH_HOST_LIST = []string{}
-	hosts := strings.Split(env.SSH_HOSTS, ",")
-	for _, host := range hosts {
-		env.SSH_HOST_LIST = append(env.SSH_HOST_LIST, strings.TrimSpace(host))
-	}
-}
 
 func (env *Env) PrintEnv() {
 	log.Println()
@@ -148,9 +136,13 @@ func (env *Env) PrintEnv() {
 	log.Println("[ENV] SSH_PRIVATE_KEY_PATH: " + env.SSH_PRIVATE_KEY_PATH)
 	log.Println("[ENV] SSH_CONNECT_TIMEOUT: " + env.SSH_CONNECT_TIMEOUT)
 	log.Printf("[ENV] SSH_SAVE_ENV: %t\n", env.SSH_SAVE_ENV)
-	log.Println("[ENV] SSH_HOST_LIST:")
-	for _, host := range env.SSH_HOST_LIST {
-		log.Println("[ENV] - " + host)
+	log.Println("[ENV] SSH_HOSTS (from hosts.json):")
+	if len(env.SshHostsMap) > 0 {
+		for alias, connStr := range env.SshHostsMap {
+			log.Printf("[ENV] - %s -> %s\n", alias, connStr)
+		}
+	} else {
+		log.Println("[ENV] - No hosts loaded.")
 	}
 	log.Println()
 }

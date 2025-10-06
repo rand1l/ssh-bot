@@ -9,6 +9,7 @@ services:
       - .env:/ssh-bot/.env
       - ${SSH_PRIVATE_KEY_PATH_HOST}:/root/.ssh/id_rsa
       - ~/.ssh/known_hosts:/ssh-bot/known_hosts
+      - ./hosts.json:/ssh-bot/hosts.json
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

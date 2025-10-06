@@ -42,7 +42,9 @@ cd ssh-bot
 - Create and fill the `.env` file file inside the working directory:
 
 ```shell
+# Telegram api key from https://telegram.me/BotFather
 TELEGRAM_BOT_TOKEN=XXXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+# Your Telegram id from https://t.me/getmyid_bot
 TELEGRAM_USER_ID=7777777777
 
 # Interpreter used only when running the bot local in Windows
@@ -56,17 +58,29 @@ LINUX_SHELL=bash
 PARALLEL_EXEC=true
 
 # Global parameters for ssh connection (low priority)
-SSH_PORT=2121
+SSH_PORT=22
 SSH_USER=lifailon
+
 # Use password to connect (optional)
 SSH_PASSWORD=
-# Full path to private key (default: ~/.ssh/id_rsa)
+
+# Path to the private key INSIDE THE CONTAINER (the "shop shelf number").
+# This tells the bot where to find the key after it has been mounted.
+# IMPORTANT: This path MUST match the right side of the volume mount in docker-compose.yml.
+# For this project, it should always be '/root/.ssh/id_rsa'.
+# If you leave this empty, the bot will use this default path.
 SSH_PRIVATE_KEY_PATH=
 SSH_CONNECT_TIMEOUT=2
+
 # Save and reuse passed variables and functions (default: false)
 SSH_SAVE_ENV=true
-# List of hosts separated by comma (high priority for username and port)
-SSH_HOST_LIST=root@192.168.3.102:22,root@192.168.3.103:22,192.168.3.105,192.168.3.106
+
+# Path to the private key ON YOUR HOST MACHINE (the "warehouse address").
+# This is used by docker-compose to find the key and mount it into the container.
+SSH_PRIVATE_KEY_PATH_HOST=~/.ssh/id_rsa
+
+# Log the output of command execution
+LOG_MODE=DEBUG
 ```
 
 > [!NOTE]
