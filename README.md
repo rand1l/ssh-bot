@@ -91,7 +91,7 @@ SSH_USER=rand1l
 # Use password to connect (optional)
 SSH_PASSWORD=
 
-# Path to the private key INSIDE THE CONTAINER (the "shop shelf number").
+# Path to the private key INSIDE THE CONTAINER.
 # This tells the bot where to find the key after it has been mounted.
 # IMPORTANT: This path MUST match the right side of the volume mount in docker-compose.yml.
 # For this project, it should always be '/root/.ssh/id_rsa'.
