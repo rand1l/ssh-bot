@@ -102,7 +102,7 @@ SSH_CONNECT_TIMEOUT=2
 # Save and reuse passed variables and functions (default: false)
 SSH_SAVE_ENV=true
 
-# Path to the private key ON YOUR HOST MACHINE (the "warehouse address").
+# Path to the private key ON YOUR HOST MACHINE.
 # This is used by docker-compose to find the key and mount it into the container.
 SSH_PRIVATE_KEY_PATH_HOST=~/.ssh/id_rsa
 
