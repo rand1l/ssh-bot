@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -15,13 +17,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"net/http"
-	"encoding/json"
 
 	env "github.com/rand1l/ssh-bot/pkg/env"
 
-	"github.com/pkg/sftp"
 	api "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/pkg/sftp"
 	sshClient "golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -49,15 +49,15 @@ const hostsFilePath = "/ssh-bot/hosts.json"
 var ansiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*((([a-zA-Z\\d]*(;[a-zA-Z\\d]*)*)?\u0007)|((\\d{1,4}(;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))")
 
 type PagedMessage struct {
-	FullText string // Full, cleared output text
+	Pages       []string // Slice with prepared pages
 	Header   string // Message header (status + host)
-	Offset   int    // Current offset for paginated output
+	CurrentPage   int    // Current page for paginated output
 	Follow   bool   // Whether to follow the output (auto-scroll)
 }
 
 var pagedMessages = make(map[int]PagedMessage)
 var pagedMessagesMutex = &sync.Mutex{}
-const pageLen = 3800
+const pageLen = 4000
 
 // SSH holds the state and client for a persistent SSH connection.
 type SSH struct {
@@ -378,7 +378,7 @@ func (ssh *SSH) sshConnect(env *env.Env, bot *api.BotAPI, chatID int64) error {
         var keyErr *knownhosts.KeyError
         if errors.As(err, &keyErr) {
             // Case 3: A key for this host is known, but it DOES NOT MATCH.
-            // This is a potential man-in-the-middle attack. Abort!
+            // This is a potential man-in-the-middle attack. Abort
             if len(keyErr.Want) > 0 {
                 log.Printf("[CRITICAL] HOST KEY MISMATCH for %s! Aborting connection.", hostname)
                 return fmt.Errorf("host key mismatch: possible man-in-the-middle attack")
@@ -532,22 +532,19 @@ func (ssh *SSH) sshRunSimpleCommand(command string) ([]byte, error) {
 
 // Creates the inline keyboard with "Up", "Page X/Y", and "Down" buttons
 // It disables buttons by replacing them with a blank placeholder when at the start or end of the output
-func getPaginationKeyboard(messageID int, offset int, totalLen int) *api.InlineKeyboardMarkup {
+func getPaginationKeyboard(messageID int, currentPage int, totalPages int) *api.InlineKeyboardMarkup {
     var row []api.InlineKeyboardButton
 
-    if offset > 0 {
+    if currentPage > 0 {
         row = append(row, api.NewInlineKeyboardButtonData("⬆️ Up", fmt.Sprintf("page_up_%d", messageID)))
     } else {
         row = append(row, api.NewInlineKeyboardButtonData(" ", "noop"))
     }
 
-    currentPage := (offset / pageLen) + 1
-    totalPages := (totalLen + pageLen - 1) / pageLen
-    if totalPages == 0 { totalPages = 1 }
-    pageIndicator := api.NewInlineKeyboardButtonData(fmt.Sprintf("%d / %d", currentPage, totalPages), "noop")
+    pageIndicator := api.NewInlineKeyboardButtonData(fmt.Sprintf("%d / %d", currentPage+1, totalPages), "noop")
     row = append(row, pageIndicator)
 
-    if offset+pageLen < totalLen {
+    if currentPage < totalPages-1 {
         row = append(row, api.NewInlineKeyboardButtonData("⬇️ Down", fmt.Sprintf("page_down_%d", messageID)))
     } else {
         row = append(row, api.NewInlineKeyboardButtonData(" ", "noop"))
@@ -557,25 +554,66 @@ func getPaginationKeyboard(messageID int, offset int, totalLen int) *api.InlineK
     return &keyboard
 }
 
+// buildPages breaks large text into pages, preserving line integrity.
+func buildPages(fullText string, maxPageLen int) []string {
+    lines := strings.Split(fullText, "\n")
+    if len(lines) == 1 && len(lines[0]) == 0 {
+        return []string{""} // Return one empty page if there is no output
+    }
+
+    var pages []string
+    var pageBuilder strings.Builder
+
+    for _, line := range lines {
+		// Check if adding a newline will exceed the page limit
+		// +1 is needed for the line break character '\n'
+        if pageBuilder.Len()+len(line)+1 > maxPageLen {
+            // The current page is full, save it
+            pages = append(pages, pageBuilder.String())
+            pageBuilder.Reset()
+        }
+
+        // Add a line and wrap to a new line
+        pageBuilder.WriteString(line)
+        pageBuilder.WriteString("\n")
+    }
+
+    // Add the last, unfilled page, if there is one
+    if pageBuilder.Len() > 0 {
+        pages = append(pages, pageBuilder.String())
+    }
+    
+    // If after all operations there are no pages (for example, the input string was empty)
+    if len(pages) == 0 {
+        return []string{""}
+    }
+
+    return pages
+}
+
 func sendOrEditFinalMessage(bot *api.BotAPI, chatID int64, messageID int, header string, cleanedOutput string) {
     // Clean up any previous pagination state for this message to prevent memory leaks
     pagedMessagesMutex.Lock()
     delete(pagedMessages, messageID)
     pagedMessagesMutex.Unlock()
 
+    pages := buildPages(cleanedOutput, pageLen)
+
+
     if len(cleanedOutput) > pageLen {
 		// Long output: set up a new pagination state.
         pagedMessagesMutex.Lock()
         pagedMessages[messageID] = PagedMessage{
-            FullText: cleanedOutput,
-            Header:   header,
-            Offset:   0,
-            Follow:   false, // Auto-scroll is not needed for final output
+            Pages:       pages,
+            Header:      header,
+            CurrentPage: 0,
+            Follow:      false,
         }
         pagedMessagesMutex.Unlock()
 
-        firstPageContent := cleanedOutput[:pageLen]
-        keyboard := getPaginationKeyboard(messageID, 0, len(cleanedOutput))
+        firstPageContent := pages[0]
+        
+        keyboard := getPaginationKeyboard(messageID, 0, len(pages))
 
         finalText := header + "```sh\n" + firstPageContent + "```"
         finalEdit := api.NewEditMessageText(chatID, messageID, finalText)
@@ -606,7 +644,7 @@ func max(a, b int) int {
 
 // runCommand is the core function for executing commands, handling both SSH and local execution.
 // It features logic to differentiate between short and long-running commands for a better UX.
-func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, chatID int64, messageText string, requestPTY bool, isRefreshMode bool) {
+func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, chatID int64, messageText string, requestPTY bool, isRefreshMode bool) {
 	if ssh.SSH_MODE {
 		command := "cd " + ssh.PWD + " && " + messageText
 
@@ -642,7 +680,7 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 				sshClient.TTY_OP_ISPEED: 14400,
 				sshClient.TTY_OP_OSPEED: 14400,
 			}
-			if err := session.RequestPty("xterm", 60, 150, modes); err != nil {
+			if err := session.RequestPty("xterm", 1000, 150, modes); err != nil {
 				log.Printf("[ERROR] Request for PTY failed: %v", err)
 				editMsg := api.NewEditMessageText(chatID, messageID, fmt.Sprintf("⚠ Error: Could not request PTY: %v", err))
 				editMsg.ParseMode = api.ModeMarkdown
@@ -663,7 +701,7 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 
 		// Race the command completion against a short timeout.
 		// This allows us to handle short commands instantly without entering a slow streaming mode.
-		shortTimeout := time.After(500 * time.Millisecond)
+		shortTimeout := time.After(400 * time.Millisecond)
 
 		// A buffer to accumulate the command's output.
 		var outputBuffer bytes.Buffer
@@ -709,21 +747,21 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 			pagedMessagesMutex.Lock()
 			header := fmt.Sprintf("▶️ Streaming on `%s`:", ssh.SSH_HOST)
 			pagedMessages[messageID] = PagedMessage{
-				FullText: "",
+				Pages: []string{},
 				Header:   header,
-				Offset:   0,
-				Follow:   true,	// Start in auto-scroll mode by default.
+				CurrentPage:   0,
+				Follow:   false,	// Does not start in auto-scroll mode by default.
 			}
 			pagedMessagesMutex.Unlock()
 
-			ticker := time.NewTicker(300 * time.Millisecond)
+			ticker := time.NewTicker(1000 * time.Millisecond)
 			defer ticker.Stop()
 
 			var lastText string
 
 			for {
 				select {
-				case err := <-done:			//Command has finished, send final output
+				case err := <-done:			////Command finished quickly, send final output
 					var finalOutput string
 					fullBufferStr := outputBuffer.String()
 
@@ -762,7 +800,7 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 					}
 					return
 
-				case <-ticker.C:
+				case <-ticker.C:		//Command is long-running, switch to streaming mode
 
 					if outputBuffer.Len() > maxOutputBufferSize {
 						outputBuffer.Next(outputBuffer.Len() - maxOutputBufferSize)
@@ -794,45 +832,103 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 					}
 
 					cleanedOutput := ansiRegex.ReplaceAllString(currentScreenContent, "")
-					state.FullText = cleanedOutput
+                    
+                    pages := buildPages(cleanedOutput, pageLen)
+                    
+                    currentPageIndex := state.CurrentPage
+                    if state.Follow {
+                        currentPageIndex = len(pages) - 1 // If follow mode, always show the last one
+                    }
+					if currentPageIndex < 0 {
+                        currentPageIndex = 0
+                    }
+                    if currentPageIndex >= len(pages) {
+                        currentPageIndex = len(pages) - 1
+                    }
 
-					var currentOffset int
-					if state.Follow && len(state.FullText) > pageLen {
-						totalPages := (len(state.FullText) + pageLen - 1) / pageLen
-						currentOffset = (totalPages - 1) * pageLen
-						state.Offset = currentOffset
-					} else {
-						currentOffset = state.Offset
-					}
+                    state.Pages = pages
+                    state.CurrentPage = currentPageIndex
+                    pagedMessages[messageID] = state
 
-					end := currentOffset + pageLen
-					if end > len(state.FullText) {
-						end = len(state.FullText)
-					}
-					if currentOffset >= len(state.FullText) && len(state.FullText) > 0 {
-						currentOffset = 0
-					}
-					var pageContent string
-					if len(state.FullText) > 0 {
-						pageContent = state.FullText[currentOffset:end]
-					}
-					newText := state.Header + "\n```sh\n" + pageContent + "```"
-					pagedMessages[messageID] = state
-					pagedMessagesMutex.Unlock()
-					if newText == lastText {
-						continue
-					}
-					lastText = newText
-					stopButton := api.NewInlineKeyboardButtonData("⏹️ Stop", fmt.Sprintf("stop_cmd_%d", messageID))
-					paginationKeyboard := getPaginationKeyboard(messageID, currentOffset, len(cleanedOutput))
-					combinedKeyboard := api.NewInlineKeyboardMarkup(
-						paginationKeyboard.InlineKeyboard[0],
-						api.NewInlineKeyboardRow(stopButton),
-					)
+                    pageContent := pages[currentPageIndex]
+                    newText := state.Header + "\n```sh\n" + pageContent + "```"
+                    
+                    pagedMessagesMutex.Unlock() 
+
+                    if newText == lastText {
+                        continue
+                    }
+                    lastText = newText
+
+                    stopButton := api.NewInlineKeyboardButtonData("⏹️ Stop", fmt.Sprintf("stop_cmd_%d", messageID))
+
+                    var followButton api.InlineKeyboardButton
+                    if state.Follow {
+                        followButton = api.NewInlineKeyboardButtonData("📜 Unfollow", fmt.Sprintf("follow_off_%d", messageID))
+                    } else {
+                        followButton = api.NewInlineKeyboardButtonData("📜 Follow", fmt.Sprintf("follow_on_%d", messageID))
+                    }
+
+                    totalPages := len(state.Pages)
+                    currentPage := state.CurrentPage
+
+                    paginationKeyboard := getPaginationKeyboard(messageID, currentPage, totalPages)
+                    combinedKeyboard := api.NewInlineKeyboardMarkup(
+                        paginationKeyboard.InlineKeyboard[0],
+                        api.NewInlineKeyboardRow(stopButton, followButton),
+                    )
 					editMsg := api.NewEditMessageText(chatID, messageID, newText)
 					editMsg.ParseMode = api.ModeMarkdown
 					editMsg.ReplyMarkup = &combinedKeyboard
-					bot.Request(editMsg)
+					if _, err := bot.Request(editMsg); err != nil {
+						log.Printf("[ERROR] Failed to edit message during streaming (ID: %d): %v", messageID, err)
+
+						errStr := err.Error()
+
+						if strings.Contains(errStr, "message to edit not found") || strings.Contains(errStr, "message can't be edited") {
+							log.Printf("[INFO] Stopping stream for message %d as it can no longer be edited.", messageID)
+							activeSessionsMutex.Lock()
+							if session, ok := activeSessions[messageID]; ok {
+								session.Signal(sshClient.SIGKILL)
+							}
+							activeSessionsMutex.Unlock()
+							return
+						}
+
+						if strings.Contains(errStr, "Too Many Requests") {
+							re := regexp.MustCompile(`retry after (\d+)`)
+							matches := re.FindStringSubmatch(errStr)
+
+							if len(matches) > 1 {
+								retryAfter, _ := strconv.Atoi(matches[1])
+								
+								log.Printf("[WARN] Rate limit hit for message %d. Pausing for %d seconds.", messageID, retryAfter)
+
+								pagedMessagesMutex.Lock()
+								if state, ok := pagedMessages[messageID]; ok {
+									if !strings.HasPrefix(state.Header, "⏳") {
+										state.Header = "⏳ " + state.Header
+										pagedMessages[messageID] = state
+										throttledEdit := api.NewEditMessageText(chatID, messageID, state.Header+"\n```sh\n"+lastText+"```")
+										throttledEdit.ParseMode = api.ModeMarkdown
+										bot.Request(throttledEdit)
+									}
+								}
+								pagedMessagesMutex.Unlock()
+
+								time.Sleep(time.Duration(retryAfter) * time.Second)
+
+								pagedMessagesMutex.Lock()
+								if state, ok := pagedMessages[messageID]; ok {
+									state.Header = strings.TrimPrefix(state.Header, "⏳ ")
+									pagedMessages[messageID] = state
+								}
+								pagedMessagesMutex.Unlock()
+
+								continue
+							}
+						}
+					}
 				}
 			}
 		}
@@ -845,7 +941,7 @@ func (ssh *SSH) runCommand(env *env.Env, bot *api.BotAPI, update api.Update, cha
 		}
 		output, err := exec.Command(SHELL, "-c", messageText).CombinedOutput()
 
-		const maxLen = 4000
+		const maxLen = 200
 		var outputStr string
 		if len(output) > maxLen {
 			outputStr = "... (output truncated)\n" + string(output[len(output)-maxLen:])
@@ -992,36 +1088,37 @@ func main() {
 					continue
 				}
 
-				
-				var newOffset int
-				if action == "up" {
-					state.Follow = false // Disable auto-scroll when manually scrolling up
-					newOffset = state.Offset - pageLen
-				} else { // "down"
-					newOffset = state.Offset + pageLen
-					if newOffset+pageLen >= len(state.FullText) {
-						state.Follow = true // Enable auto-scroll if we reach the end
-					}
-				}
+                totalPages := len(state.Pages)
+                currentPage := state.CurrentPage
 
-				if newOffset < 0 { newOffset = 0 }
-				if newOffset == state.Offset {
-					pagedMessagesMutex.Unlock()
-					bot.Request(api.NewCallback(update.CallbackQuery.ID, ""))
-					continue
-				}
-				
-				state.Offset = newOffset
-				pagedMessages[msgID] = state
-				
-                fullTextCopy := state.FullText // Copy to unlock the mutex
-                headerCopy := state.Header
-				pagedMessagesMutex.Unlock()
 
-				end := newOffset + pageLen
-				if end > len(fullTextCopy) { end = len(fullTextCopy) }
-				pageContent := fullTextCopy[newOffset:end]
-				newText := headerCopy + "\n```sh\n" + pageContent + "```"
+                if action == "up" {
+                    state.Follow = false // Disable follow when manually scrolling up
+                    if currentPage > 0 {
+                        state.CurrentPage--
+                    }
+                } else { // "down"
+                    if currentPage < totalPages-1 {
+                        state.CurrentPage++
+                    }
+                    if state.CurrentPage == totalPages-1 {
+                        state.Follow = true
+                    }
+                }
+                
+                if state.CurrentPage == currentPage {
+                    pagedMessagesMutex.Unlock()
+                    bot.Request(api.NewCallback(update.CallbackQuery.ID, ""))
+                    continue
+                }
+
+                pagedMessages[msgID] = state
+                
+                newState := state // Copy to unlock the mutex
+                pagedMessagesMutex.Unlock()
+
+                pageContent := newState.Pages[newState.CurrentPage]
+                newText := newState.Header + "\n```sh\n" + pageContent + "```"
 
                 // Check if the session is active to decide if a Stop button is needed
                 activeSessionsMutex.Lock()
@@ -1029,7 +1126,7 @@ func main() {
                 activeSessionsMutex.Unlock()
                 
                 var keyboard api.InlineKeyboardMarkup
-                paginationKeyboard := getPaginationKeyboard(msgID, newOffset, len(fullTextCopy))
+                paginationKeyboard := getPaginationKeyboard(msgID, newState.CurrentPage, len(newState.Pages))
                 if sessionActive {
                     stopButton := api.NewInlineKeyboardButtonData("⏹️ Stop", fmt.Sprintf("stop_cmd_%d", msgID))
                     keyboard = api.NewInlineKeyboardMarkup(
@@ -1102,6 +1199,26 @@ func main() {
                 continue
             }
 
+            if strings.HasPrefix(messageText, "follow_") {
+                parts := strings.Split(messageText, "_")
+                if len(parts) != 3 { continue }
+                action, msgIDStr := parts[1], parts[2]
+                msgID, err := strconv.Atoi(msgIDStr)
+                if err != nil { continue }
+
+                pagedMessagesMutex.Lock()
+                state, ok := pagedMessages[msgID]
+                if ok {
+                    state.Follow = (action == "on") // "on" -> true, "off" -> false
+                    pagedMessages[msgID] = state
+                }
+                pagedMessagesMutex.Unlock()
+
+                bot.Request(api.NewCallback(update.CallbackQuery.ID, fmt.Sprintf("Follow mode: %s", action)))
+                // We don't redraw the message here, it will update itself with the next ticker iteration
+                continue
+            }
+
             if decisionChan, ok := pendingHostKeyVerifications[chatID]; ok {
                 var decision bool
                 if messageText == "verify_host_yes" {
@@ -1128,7 +1245,6 @@ func main() {
         default:
             continue
         }
-
 
 
         if update.Message != nil && update.Message.Document != nil {
@@ -1276,7 +1392,7 @@ func main() {
                     return
                 }
 
-                // --- Connection Successful ---
+                // Connection Successful
                 ssh.SSH_MODE = true // Set SSH mode only AFTER a successful connection
                 log.Println("[INFO] Connection successful to " + selectedHost)
 
@@ -1338,12 +1454,12 @@ func main() {
             requestPTY = true
             messageText = strings.TrimSpace(strings.TrimPrefix(messageText, "/tty"))
         }
-
+		
         // Run command for execution
         if env.PARALLEL_EXEC {
-            go ssh.runCommand(env, bot, update, chatID, messageText, requestPTY, isRefreshMode)
+            go ssh.runCommand(env, bot, chatID, messageText, requestPTY, isRefreshMode)
         } else {
-            ssh.runCommand(env, bot, update, chatID, messageText, requestPTY, isRefreshMode)
+            ssh.runCommand(env, bot, chatID, messageText, requestPTY, isRefreshMode)
         }
     }
 }
