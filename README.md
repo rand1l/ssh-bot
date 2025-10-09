@@ -9,25 +9,15 @@
     <strong>English (🇺🇸)</strong> | <a href="README_RU.md">Russian (🇷🇺)</a>
 </h4>
 
-<table>
-  <tr valign="top">
-    <td width="450">
-      <video src="https://github.com/user-attachments/assets/8a0fc628-0d83-401b-8582-186465794b7b" controls="controls" width="450"></video>
-    </td>
-    <td style="padding-left: 20px;">
-      A Telegram bot that allows you to run specified commands on a selected host in your home network and returns the results of their execution in real time. The bot establishes a persistent <b>SSH</b> connection with the remote host, which allows for the real-time execution of long-running commands, with pseudo-terminal (PTY) support for utilities like <code>top</code> and the ability to stop running processes. Built-in <b>sftp</b> support allows for easy uploading and downloading of files.
-      <br><br>
-      The bot saves you the time and money required to set up a <b>VPN</b> server, a static IP address, or a <b>VPS</b> for local network access. It also eliminates the need for third-party applications (like <b>VPN</b> and <b>ssh</b> clients) on a remote device and does not require a stable internet connection.
-      <br><br>
-      <b> Key Features</b>
-      <br>
-      • Real-time command execution via SSH<br>
-      • Persistent connection with PTY support<br>
-      • Built-in SFTP for file uploads/downloads<br>
-      • No need for VPN, static IP, or VPS<br>
-    </td>
-  </tr>
-</table>
+A Telegram bot that allows you to run specified commands on a selected host in your home network and returns the results of their execution in real time. The bot establishes a persistent `SSH` connection with the remote host, which allows for the real-time execution of long-running commands, with pseudo-terminal (PTY) support for utilities like top and the ability to stop running processes. Built-in `sftp` support allows for easy uploading and downloading of files.
+
+The bot saves you the time and money required to set up a `VPN` server, a static IP address, or a `VPS` for local network access. It also eliminates the need for third-party applications (like `VPN` and `ssh` clients) on a remote device and does not require a stable internet connection.
+
+<div align="center">
+
+https://github.com/user-attachments/assets/bca58846-55b4-4fec-a036-08c3eeb920aa
+
+</div>
 
 ## Command Execution & Interactivity
 
