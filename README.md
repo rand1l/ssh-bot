@@ -19,18 +19,16 @@
       <br><br>
       The bot saves you the time and money required to set up a <b>VPN</b> server, a static IP address, or a <b>VPS</b> for local network access. It also eliminates the need for third-party applications (like <b>VPN</b> and <b>ssh</b> clients) on a remote device and does not require a stable internet connection.
       <br><br>
-     <b> Key Features</b>
-      <br><br>
-      • Real-time command execution via SSH
-      <br><br>
-      • Persistent connection with PTY support
-      <br><br>
-      • Built-in SFTP for file uploads/downloads
-      <br><br>
-      • No need for VPN, static IP, or VPS
+      <b> Key Features</b>
+      <br>
+      • Real-time command execution via SSH<br>
+      • Persistent connection with PTY support<br>
+      • Built-in SFTP for file uploads/downloads<br>
+      • No need for VPN, static IP, or VPS<br>
+      • Works on unstable internet connections
+    </td>
   </tr>
 </table>
-## Roadmap
 
 ## Command Execution & Interactivity
 
