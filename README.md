@@ -25,7 +25,6 @@
       • Persistent connection with PTY support<br>
       • Built-in SFTP for file uploads/downloads<br>
       • No need for VPN, static IP, or VPS<br>
-      • Works on unstable internet connections
     </td>
   </tr>
 </table>
