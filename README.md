@@ -18,21 +18,16 @@
       A Telegram bot that allows you to run specified commands on a selected host in your home network and returns the results of their execution in real time. The bot establishes a persistent <b>SSH</b> connection with the remote host, which allows for the real-time execution of long-running commands, with pseudo-terminal (PTY) support for utilities like <code>top</code> and the ability to stop running processes. Built-in <b>sftp</b> support allows for easy uploading and downloading of files.
       <br><br>
       The bot saves you the time and money required to set up a <b>VPN</b> server, a static IP address, or a <b>VPS</b> for local network access. It also eliminates the need for third-party applications (like <b>VPN</b> and <b>ssh</b> clients) on a remote device and does not require a stable internet connection.
-      <br>
-      <h3> Key Features</h3>
-      <p>
-        <strong> Real-Time Execution</strong><br>
-        Run commands via a persistent SSH connection and see the output stream back to you instantly.
-      </p>
-      <p>
-        <strong> PTY &amp; SFTP Support</strong><br>
-        Pseudo-terminalsupport for interactive tools like <code>top</code>, plus a built-in SFTP client for file transfers.
-      </p>
-      <p>
-        <strong> No Public IP Needed</strong><br>
-        Avoid the cost and hassle of a static IP, VPN, or VPS.
-      </p>
-    </td>
+      <br><br>
+     <b> Key Features</b>
+      <br><br>
+      • Real-time command execution via SSH
+      <br><br>
+      • Persistent connection with PTY support
+      <br><br>
+      • Built-in SFTP for file uploads/downloads
+      <br><br>
+      • No need for VPN, static IP, or VPS
   </tr>
 </table>
 ## Roadmap
