@@ -1,5 +1,5 @@
 # Build image
-FROM golang:1.23-alpine3.20 AS build
+FROM golang:1.24-alpine3.22 AS build
 WORKDIR /ssh-bot
 
 # Copy only dependency files
@@ -14,7 +14,7 @@ ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /ssh-bot/ssh-bot
 
 # Final image
-FROM alpine:3.20
+FROM alpine:3.22
 WORKDIR /ssh-bot
 COPY --from=build /ssh-bot/ssh-bot ./
 
