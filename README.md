@@ -6,7 +6,7 @@
 </h1>
 
 <h4 align="center">
-    <strong>English (🇺🇸)</strong> | <a href="README_RU.md">Russian (🇷🇺)</a>
+    <strong>English (🇺🇸)</strong> | <a href="README_RU.md">Russian (🇷🇺)</a> | <a href="README_CN.md">中文 (🇨🇳)</a>
 </h4>
 
 A Telegram bot that allows you to run specified commands on a selected host in your home network and returns the results of their execution in real time. The bot establishes a persistent `SSH` connection with the remote host, which allows for the real-time execution of long-running commands, with pseudo-terminal (PTY) support for utilities like top and the ability to stop running processes. Built-in `sftp` support allows for easy uploading and downloading of files.
