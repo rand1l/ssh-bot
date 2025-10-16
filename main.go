@@ -110,7 +110,7 @@ const maxOutputBufferSize = 1024 * 1024
 type BotServer struct {
     bot *api.BotAPI
     env *env.Env
-    ssh *SSH
+    ssh *SSH 
 
     pinHash         string
     isAuthenticated bool
@@ -120,7 +120,7 @@ type BotServer struct {
 
     pendingHostKeyVerifications map[int64]chan bool
     pendingPasswordRequests     map[int64]chan string
-
+    
     // maps a message ID to a running SSH session.
     // used to stop long-running commands via a callback button.
     activeSessions              map[int]*sshClient.Session
@@ -142,7 +142,7 @@ type BotServer struct {
 }
 
 func (s *BotServer) autoLockChecker() {
-
+    
     ticker := time.NewTicker(1 * time.Second)
     defer ticker.Stop()
 
@@ -319,7 +319,7 @@ func (s *BotServer) handleFileDownload(chatID int64, remotePath string) {
 func (s *BotServer) handleFileUpload(update api.Update) {
     chatID := update.Message.Chat.ID
     doc := update.Message.Document
-
+    
     // Check for a pending upload path from the /upload command
     s.pendingUploadsMutex.Lock()
     remotePath, isPending := s.pendingUploads[chatID]
@@ -613,7 +613,7 @@ func (ssh *SSH) sshRunSimpleCommand(command string) ([]byte, error) {
         return nil, fmt.Errorf("failed to create session: %w", err)
     }
     defer session.Close()
-
+    
     // Use CombinedOutput to get both stdout and stderr
     output, err := session.CombinedOutput(command)
     if err != nil {
@@ -675,7 +675,7 @@ func buildPages(fullText string, maxPageLen int) []string {
     if pageBuilder.Len() > 0 {
         pages = append(pages, pageBuilder.String())
     }
-
+    
     // If after all operations there are no pages (for example, the input string was empty)
     if len(pages) == 0 {
         return []string{""}
@@ -705,7 +705,7 @@ func (s *BotServer) sendOrEditFinalMessage(chatID int64, messageID int, header s
         s.pagedMessagesMutex.Unlock()
 
         firstPageContent := pages[0]
-
+        
         keyboard := getPaginationKeyboard(messageID, 0, len(pages))
 
         finalText := header + "```sh\n" + firstPageContent + "```"
@@ -720,7 +720,7 @@ func (s *BotServer) sendOrEditFinalMessage(chatID int64, messageID int, header s
         if len(cleanedOutput) > 0 {
             finalText += "```sh\n" + cleanedOutput + "```"
         }
-
+        
         finalEdit := api.NewEditMessageText(chatID, messageID, finalText)
         finalEdit.ParseMode = api.ModeMarkdown
         finalEdit.ReplyMarkup = &api.InlineKeyboardMarkup{InlineKeyboard: [][]api.InlineKeyboardButton{}}
@@ -1078,6 +1078,7 @@ func (s *BotServer) handleUpdate(update api.Update) {
 func (s *BotServer) handleMessage(update api.Update) {
     chatID := update.Message.Chat.ID
 
+    // Access check
     if chatID != s.env.TELEGRAM_USER_ID {
         s.bot.Send(api.NewMessage(chatID, "⛔ Access denied ⛔"))
         log.Printf("[WARN] Unauthorized access from %s %s (%s - %d)", update.Message.From.FirstName, update.Message.From.LastName, update.Message.From.UserName, chatID)
@@ -1094,13 +1095,13 @@ func (s *BotServer) handleMessage(update api.Update) {
         // Acess /set_pin command even when locked
         if strings.HasPrefix(update.Message.Text, "/set_pin") {
             s.handleSetPinCommand(chatID, update.Message.Text)
-
+            
             s.bot.Request(api.NewDeleteMessage(chatID, update.Message.MessageID))
             return
         }
 
         pinAttempt := update.Message.Text
-
+        
         defer s.bot.Request(api.NewDeleteMessage(chatID, update.Message.MessageID))
 
         if len(pinAttempt) != 4 || !isNumeric(pinAttempt) {
@@ -1120,7 +1121,7 @@ func (s *BotServer) handleMessage(update api.Update) {
             s.bot.Send(msg)
         } else {
             msg, _ := s.bot.Send(api.NewMessage(chatID, "❌ Incorrect PIN code."))
-
+            
             go func() {
                 time.Sleep(3 * time.Second)
                 s.bot.Request(api.NewDeleteMessage(chatID, msg.MessageID))
@@ -1164,6 +1165,19 @@ func (s *BotServer) handleMessage(update api.Update) {
         s.handleExitCommand(chatID)
     case messageText == "/host_list":
         s.handleHostListCommand(chatID)
+
+    case messageText == "/start":
+    welcomeMessage := `👋 **Welcome!**
+
+This is an SSH bot for managing servers. It's currently in **local mode**, executing commands on the same host where the bot is running.
+
+To connect to a remote host, use the ` + "`/ssh user@hostname`" + ` command or select a host from the list: ` + "`/host_list`" + `.
+
+Please be mindful of Telegram's API limits. Running multiple commands in the background, especially those that generate frequent output (like ` + "`ping` or `top`" + `), can cause the bot to be temporarily rate-limited by Telegram. This will result in delayed responses or errors until the timeout period passes.`
+
+    msg := api.NewMessage(chatID, welcomeMessage)
+    msg.ParseMode = api.ModeMarkdown
+    s.bot.Send(msg)
     case strings.HasPrefix(messageText, "/ssh"):
         // launch the entire connection logic in a separate goroutine
         // to avoid blocking the main loop while waiting for user input (host key/password).
@@ -1319,6 +1333,7 @@ func (s *BotServer) handleSSHCommand(chatID int64, messageText string) {
         return
     }
 
+    // Connection Successful
     s.ssh.SSHMode = true
     log.Println("[INFO] Connection successful to " + selectedHost)
 
@@ -1372,7 +1387,7 @@ func (s *BotServer) handleSetPinCommand(chatID int64, text string) {
 
     s.pinHash = string(hashedPin)
     s.isAuthenticated = true // Automatically authenticate after setting a new PIN
-
+    
     s.bot.Send(api.NewMessage(chatID, "✅ The PIN code has been successfully set. You are now authenticated."))
     log.Println("[INFO] PIN has been updated.")
 }
