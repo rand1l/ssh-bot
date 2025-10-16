@@ -109,6 +109,8 @@ SSH_PRIVATE_KEY_PATH_HOST=~/.ssh/id_rsa
 
 # Log the output of command execution
 LOG_MODE=DEBUG
+# User personal PIN hash
+PIN_HASH=
 ```
 
 > [!NOTE]
@@ -117,11 +119,14 @@ LOG_MODE=DEBUG
 - Run the bot in a container:
 
 ```shell
-docker run -d --name ssh-bot \
+docker run -d \
+    --name ssh-bot \
     -v ./.env:/ssh-bot/.env \
     -v $HOME/.ssh/id_rsa:/root/.ssh/id_rsa \
+    -v $HOME/.ssh/known_hosts:/ssh-bot/known_hosts \
+    -v ./hosts.json:/ssh-bot/hosts.json \
     --restart unless-stopped \
-    lifailon/ssh-bot:latest
+    rand1l/ssh-bot:latest
 ```
 
 > [!NOTE]
