@@ -22,14 +22,20 @@ type Env struct {
 	SSH_SAVE_ENV         bool
 	SSH_HOSTS            string
 	LOG_MODE             string
-	SshHostsMap map[string]string
+	SshHostsMap          map[string]string
+	PIN_HASH             string
 }
 
 func (env *Env) GetEnv() {
 	data, err := os.ReadFile(".env")
 	// Check reading of env file
 	if err != nil {
-		log.Fatal(err)
+		// If .env doesn't exist, we just proceed with defaults, no need to crash
+		if os.IsNotExist(err) {
+			log.Println("[WARN] .env file not found, using default values and environment variables.")
+		} else {
+			log.Fatal(err)
+		}
 	}
 	// Get array strings from file
 	dataString := strings.TrimSpace(string(data))
@@ -47,9 +53,13 @@ func (env *Env) GetEnv() {
 
 	// Fill the environment
 	for _, line := range linesNotComments {
-		envArr := strings.Split(line, "=")
-		envKey := strings.TrimSpace(envArr[0])
-		envValue := strings.TrimSpace(envArr[1])
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		envKey := strings.TrimSpace(parts[0])
+		envValue := strings.TrimSpace(parts[1])
+
 		switch {
 		case envKey == "TELEGRAM_BOT_TOKEN":
 			env.TELEGRAM_BOT_TOKEN = strings.TrimSpace(strings.Split(envValue, "#")[0])
@@ -87,6 +97,8 @@ func (env *Env) GetEnv() {
 			}
 		case envKey == "LOG_MODE":
 			env.LOG_MODE = strings.TrimSpace(strings.Split(envValue, "#")[0])
+		case envKey == "PIN_HASH":
+			env.PIN_HASH = strings.TrimSpace(strings.Split(envValue, "#")[0])
 		}
 	}
 
@@ -115,13 +127,7 @@ func (env *Env) GetEnv() {
 	if len(env.SSH_CONNECT_TIMEOUT) == 0 {
 		env.SSH_CONNECT_TIMEOUT = "2"
 	}
-
-	// Logging env
-	if env.LOG_MODE == "DEBUG" {
-		env.PrintEnv()
-	}
 }
-
 
 func (env *Env) PrintEnv() {
 	log.Println()
@@ -136,6 +142,13 @@ func (env *Env) PrintEnv() {
 	log.Println("[ENV] SSH_PRIVATE_KEY_PATH: " + env.SSH_PRIVATE_KEY_PATH)
 	log.Println("[ENV] SSH_CONNECT_TIMEOUT: " + env.SSH_CONNECT_TIMEOUT)
 	log.Printf("[ENV] SSH_SAVE_ENV: %t\n", env.SSH_SAVE_ENV)
+
+	if env.PIN_HASH != "" {
+		log.Println("[ENV] PIN_HASH: <set>")
+	} else {
+		log.Println("[ENV] PIN_HASH: <not set>")
+	}
+
 	log.Println("[ENV] SSH_HOSTS (from hosts.json):")
 	if len(env.SshHostsMap) > 0 {
 		for alias, connStr := range env.SshHostsMap {
