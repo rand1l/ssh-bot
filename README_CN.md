@@ -6,7 +6,7 @@
 </h1>
 
 <h4 align="center">
-    <strong>English (🇺🇸)</strong> | <a href="README_RU.md">Russian (🇷🇺)</a> | <a href="README_CN.md">中文 (🇨🇳)</a>
+    <a href="README.md">English (🇺🇸)</a> | <a href="README_RU.md">Russian (🇷🇺)</a> | <strong> 中文 (🇨🇳)</strong> 
 </h4>
 
 一个 Telegram 机器人，允许您在家庭网络中的选定主机上运行指定命令，并实时返回其执行结果。该机器人与远程主机建立持久的 `SSH` 连接，从而可以实时执行长时间运行的命令，支持 `top` 等工具的伪终端（PTY），并能够停止正在运行的进程。内置的 `sftp` 支持可以方便地上传和下载文件。
