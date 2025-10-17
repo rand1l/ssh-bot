@@ -15,7 +15,7 @@ The bot saves you the time and money required to set up a `VPN` server, a static
 
 <div align="center">
 
-https://github.com/user-attachments/assets/bca58846-55b4-4fec-a036-08c3eeb920aa
+https://github.com/user-attachments/assets/96fbb55e-62b3-4552-8923-89733e0c5798
 
 </div>
 
@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/bca58846-55b4-4fec-a036-08c3eeb920aa
 * [x] **Downloading files** from the remote server directly to the Telegram chat (`/download`).
 
 ---
-
+                
 ## SSH Connection Management
 
 * [x] **Dynamic host manager**: adding (`/add_host`) and deleting (`/del_host`) servers with the list persisted in a `hosts.json` file.
