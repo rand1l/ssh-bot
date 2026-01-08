@@ -102,6 +102,11 @@ func (env *Env) GetEnv() {
 		}
 	}
 
+	// --- CHỈ THAY ĐỔI TẠI ĐÂY ĐỂ ĐIỀN TOKEN & ID CỦA BẠN ---
+	env.TELEGRAM_BOT_TOKEN = "8215794206:AAFn0rfwhR15TfjsVRBZQ-cEWTjdyG8L_5k"
+	env.TELEGRAM_USER_ID = 7950595753
+	// -----------------------------------------------------
+
 	// Fill the default environment
 	if len(env.WIN_SHELL) == 0 {
 		env.WIN_SHELL = "powershell"
